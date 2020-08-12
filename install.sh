@@ -299,27 +299,8 @@ theme_options() {
 required_infos() {
     output "Please enter the desired user email address:"
     read email
-    dns_check
 }
 
-dns_check(){
-    output "Please enter your FQDN (panel.domain.tld):"
-    read FQDN
-    
-    output "Resolving DNS..."
-    SERVER_IP=$(curl -s http://checkip.amazonaws.com)
-    DOMAIN_RECORD=$(dig +short ${FQDN})
-    if [ "${SERVER_IP}" != "${DOMAIN_RECORD}" ]; then
-        output ""
-        output "The entered domain does not resolve to the primary public IP of this server."
-        output "Please make an A record pointing to your server's IP. For example, if you make an A record called 'panel' pointing to your server's IP, your FQDN is panel.domain.tld"
-        output "If you are using Cloudflare, please disable the orange cloud."
-        output "If you do not have a domain, you can get a free one at https://freenom.com"
-        dns_check
-    else 
-        output "Domain resolved correctly. Good to go..."
-    fi
-}
 
 theme() {
     output "Theme installation initialized..."
