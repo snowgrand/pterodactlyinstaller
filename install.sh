@@ -708,13 +708,6 @@ server {
     client_max_body_size 100m;
     client_body_timeout 120s;
     sendfile off;
-    # SSL Configuration
-    ssl_certificate /etc/letsencrypt/live/'"$FQDN"'/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/'"$FQDN"'/privkey.pem;
-    ssl_session_cache shared:SSL:10m;
-    ssl_protocols TLSv1.2;
-    ssl_ciphers 'ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA256';
-    ssl_prefer_server_ciphers on;
     # See https://hstspreload.org/ before uncommenting the line below.
     # add_header Strict-Transport-Security "max-age=15768000; preload;";
     add_header X-Content-Type-Options nosniff;
@@ -774,9 +767,6 @@ echo '
   <Directory "/var/www/pterodactyl/public">
     AllowOverride all
   </Directory>
-  SSLEngine on
-  SSLCertificateFile /etc/letsencrypt/live/'"$FQDN"'/fullchain.pem
-  SSLCertificateKeyFile /etc/letsencrypt/live/'"$FQDN"'/privkey.pem
 </VirtualHost> 
 ' | sudo -E tee /etc/apache2/sites-available/pterodactyl.conf >/dev/null 2>&1
     
@@ -830,14 +820,7 @@ server {
     client_body_timeout 120s;
     
     sendfile off;
-    # strengthen ssl security
-    ssl_certificate /etc/letsencrypt/live/'"$FQDN"'/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/'"$FQDN"'/privkey.pem;
-    ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
-    ssl_prefer_server_ciphers on;
-    ssl_session_cache shared:SSL:10m;
-    ssl_ciphers "EECDH+AESGCM:EDH+AESGCM:ECDHE-RSA-AES128-GCM-SHA256:AES256+EECDH:DHE-RSA-AES128-GCM-SHA256:AES256+EDH:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA:ECDHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES128-SHA256:DHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA:ECDHE-RSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA:AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-SHA256:AES128-SHA256:AES256-SHA:AES128-SHA:DES-CBC3-SHA:HIGH:!aNULL:!eNULL:!EXPORT:!DES:!MD5:!PSK:!RC4";
-    
+
     # See the link below for more SSL information:
     #     https://raymii.org/s/tutorials/Strong_SSL_Security_On_nginx.html
     #
@@ -895,9 +878,6 @@ echo '
   <Directory "/var/www/pterodactyl/public">
     AllowOverride all
   </Directory>
-  SSLEngine on
-  SSLCertificateFile /etc/letsencrypt/live/'"$FQDN"'/fullchain.pem
-  SSLCertificateKeyFile /etc/letsencrypt/live/'"$FQDN"'/privkey.pem
 </VirtualHost> 
 ' | sudo -E tee /etc/httpd/conf.d/pterodactyl.conf >/dev/null 2>&1
     service httpd restart
@@ -942,7 +922,6 @@ webserver_config(){
 setup_pterodactyl(){
     install_dependencies
     install_pterodactyl
-    ssl_certs
     webserver_config
     theme
 }
@@ -1151,80 +1130,6 @@ EOF
         chown -R nginx:nginx * /var/www/pterodactyl
         semanage fcontext -a -t httpd_sys_rw_content_t "/var/www/pterodactyl/storage(/.*)?"
         restorecon -R /var/www/pterodactyl
-    fi
-}
-
-ssl_certs(){
-    output "Installing Let's Encrypt and creating an SSL certificate..."
-    cd /root
-    if  [ "$lsb_dist" =  "ubuntu" ] || [ "$lsb_dist" =  "debian" ]; then
-        apt-get -y install certbot
-    elif [ "$lsb_dist" =  "fedora" ] || [ "$lsb_dist" =  "centos" ] || [ "$lsb_dist" =  "rhel" ]; then
-        yum -y install certbot
-    fi
-    if [ "$webserver" = "1" ]; then
-        service nginx stop
-    elif [ "$webserver" = "2" ]; then
-        if  [ "$lsb_dist" =  "ubuntu" ] || [ "$lsb_dist" =  "debian" ]; then
-            service apache2 stop
-        elif [ "$lsb_dist" =  "fedora" ] || [ "$lsb_dist" =  "centos" ] || [ "$lsb_dist" =  "rhel" ]; then
-            service httpd stop
-        fi
-    fi
-
-    certbot certonly --standalone --email "$email" --agree-tos -d "$FQDN" --non-interactive
-    
-    if [ "$installoption" = "2" ]; then
-        if  [ "$lsb_dist" =  "ubuntu" ] || [ "$lsb_dist" =  "debian" ]; then
-            ufw deny 80
-        elif [ "$lsb_dist" =  "fedora" ] || [ "$lsb_dist" =  "centos" ] || [ "$lsb_dist" =  "rhel" ]; then
-            firewall-cmd --permanent --remove-port=80/tcp
-            firewall-cmd --reload
-        fi
-    else
-        if [ "$webserver" = "1" ]; then
-            service nginx restart
-        elif [ "$webserver" = "2" ]; then
-            if  [ "$lsb_dist" =  "ubuntu" ] || [ "$lsb_dist" =  "debian" ]; then
-                service apache2 restart
-            elif [ "$lsb_dist" =  "fedora" ] || [ "$lsb_dist" =  "centos" ] || [ "$lsb_dist" =  "rhel" ]; then
-                service httpd restart
-            fi
-        fi
-    fi
-       
-    if [ "$lsb_dist" =  "debian" ] || [ "$lsb_dist" =  "ubuntu" ]; then
-        if [ "$installoption" = "1" ]; then
-            if [ "$webserver" = "1" ]; then
-                (crontab -l ; echo '0 0,12 * * * certbot renew --pre-hook "service nginx stop" --post-hook "service nginx restart" >> /dev/null 2>&1')| crontab -
-            elif [ "$webserver" = "2" ]; then
-                (crontab -l ; echo '0 0,12 * * * certbot renew --pre-hook "service apache2 stop" --post-hook "service apache2 restart" >> /dev/null 2>&1')| crontab -
-            fi
-        elif [ "$installoption" = "2" ]; then
-            (crontab -l ; echo '0 0,12 * * * certbot renew --pre-hook "ufw allow 80" --pre-hook "service wings stop" --post-hook "ufw deny 80" --post-hook "service wings restart" >> /dev/null 2>&1')| crontab -
-        elif [ "$installoption" = "3" ]; then
-            if [ "$webserver" = "1" ]; then
-                (crontab -l ; echo '0 0,12 * * * certbot renew --pre-hook "service nginx stop" --pre-hook "service wings stop" --post-hook "service nginx restart" --post-hook "service wings restart" >> /dev/null 2>&1')| crontab -
-            elif [ "$webserver" = "2" ]; then
-                (crontab -l ; echo '0 0,12 * * * certbot renew --pre-hook "service apache2 stop" --pre-hook "service wings stop" --post-hook "service apache2 restart" --post-hook "service wings restart" >> /dev/null 2>&1')| crontab -
-            fi
-        fi    
-    elif [ "$lsb_dist" =  "fedora" ] || [ "$lsb_dist" =  "centos" ] || [ "$lsb_dist" =  "rhel" ]; then
-        if [ "$installoption" = "1" ]; then
-            if [ "$webserver" = "1" ]; then
-                (crontab -l ; echo '0 0,12 * * * certbot renew --pre-hook "service nginx stop" --post-hook "service nginx restart" >> /dev/null 2>&1')| crontab -
-            elif [ "$webserver" = "2" ]; then
-                (crontab -l ; echo '0 0,12 * * * certbot renew --pre-hook "service httpd stop" --post-hook "service httpd restart" >> /dev/null 2>&1')| crontab -
-            fi
-        elif [ "$installoption" = "2" ]; then
-            (crontab -l ; echo '0 0,12 * * * certbot renew --pre-hook "firewall-cmd --add-port=80/tcp && firewall-cmd --reload" --pre-hook "service wings stop" --post-hook "firewall-cmd --remove-port=80/tcp && firewall-cmd --reload" --post-hook "service wings restart" >> /dev/null 2>&1')| crontab -
-        elif [ "$installoption" = "3" ]; then
-            if [ "$webserver" = "1" ]; then
-                (crontab -l ; echo '0 0,12 * * * certbot renew --pre-hook "service nginx stop" --pre-hook "service wings stop" --post-hook "service nginx restart" --post-hook "service wings restart" >> /dev/null 2>&1')| crontab -
-            elif [ "$webserver" = "2" ]; then
-                (crontab -l ; echo '0 0,12 * * * certbot renew --pre-hook "service httpd stop" --pre-hook "service wings stop" --post-hook "service httpd restart" --post-hook "service wings restart" >> /dev/null 2>&1')| crontab -
-            fi
-        fi    
     fi
 }
 
@@ -1450,7 +1355,6 @@ case $installoption in
     2)  repositories_setup
         required_infos
         firewall
-        ssl_certs
         install_daemon
         broadcast
         ;;
